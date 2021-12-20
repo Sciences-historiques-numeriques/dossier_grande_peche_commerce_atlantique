@@ -10,7 +10,7 @@ FROM navigations n
 LIMIT 100 OFFSET 200;
 
 -- Première année, dernière année, nombre de navigations
-SELECT min(aANNEE), max(aANNEE), count(*)
+SELECT min(aANNEE), max(a	ANNEE), count(*)
 FROM activitesbateaux a ;
 
 
@@ -47,9 +47,10 @@ AND n.nARRIVEE = e2.eESCALE;
 -- Créer une vue, i.e. une requête stockée
 DROP VIEW IF EXISTS v_navigations_avec_regions;
 CREATE VIEW v_navigations_avec_regions AS
-SELECT n.*, e1.eREGION AS region_depart, e2.eREGION AS region_arrivee 
+SELECT n.*, e1.eREGION AS region_depart, e2.eREGION AS region_arrivee, f.fNATURE, n.nFRET 
 FROM navigations n LEFT JOIN escales e1  ON n.nDEPART = e1.eESCALE
-LEFT JOIN escales e2 ON n.nARRIVEE = e2.eESCALE;
+LEFT JOIN escales e2 ON n.nARRIVEE = e2.eESCALE
+LEFT JOIN frets f ON f.fFRET = n.nFRET;
 
 
 -- Une fois créée la vue peut être directement interrogée
@@ -67,10 +68,10 @@ LIMIT 10;
 ---   Création de la vue correspondante 
 DROP VIEW IF EXISTS v_voyages_etapes ;
 CREATE VIEW v_voyages_etapes AS
-SELECT a.*, n.pk_navigations, n.nNUMETAP, n.nDEPART, n.region_depart, n.nARRIVEE, n.region_arrivee, n.nFRET 
+SELECT a.*, n.pk_navigations, n.nNUMETAP, n.nDEPART, n.region_depart, n.nARRIVEE, n.region_arrivee, n.fNATURE, n.nFRET
 FROM activitesbateaux a, v_navigations_avec_regions n
 WHERE a.aNOMBATEAU = n.nNOMBATEAU
-AND a.aANNEE = n.nANNEE 
+AND a.aANNEE = n.nANNEE
 ORDER BY a.aANNEE, a.aNOMBATEAU, n.nNUMETAP ; 
 
 
@@ -80,7 +81,7 @@ LIMIT 50;
 
 
 --- Regrouper trajets par bateau et année, avec lieu de départ, arrivée, nombre étapes et frets
-WITH tw1 as (SELECT nDEPART, region_depart, aNOMBATEAU, aANNEE, aARMEMENT
+WITH tw1 as (SELECT nDEPART, region_depart, aNOMBATEAU, aANNEE, aARMEMENT, fNATURE
 FROM v_voyages_etapes n
 WHERE nNUMETAP = 1
 ),tw2 as (SELECT nDEPART, region_depart, aNOMBATEAU, aANNEE  
@@ -91,7 +92,7 @@ FROM v_voyages_etapes n
 GROUP BY aNOMBATEAU , aANNEE
 )
 SELECT tw1.nDEPART AS depart, tw1.region_depart as reg_depart, tw2.nDEPART AS arrivee, tw2.region_depart as reg_arrivee, 
-tw1.aANNEE, tw1.aNOMBATEAU, tw1.aARMEMENT, eff_etapes, frets
+tw1.aANNEE, tw1.aNOMBATEAU, tw1.aARMEMENT, eff_etapes, fNATURE
 FROM tw1, tw2, tw3
 WHERE tw1.aNOMBATEAU = tw2.aNOMBATEAU
 AND tw1.aANNEE = tw2.aANNEE
@@ -104,7 +105,10 @@ ORDER BY tw1.aANNEE, tw1.aNOMBATEAU ;
 ----  Requête pour exploitation dans notebook: 
 --  Regrouper trajets par bateau et année, avec lieu de départ, arrivée, nombre étapes et frets ||| puis ajouter les escales
 
-WITH tw1 as (SELECT nDEPART, region_depart, aNOMBATEAU, aANNEE, aARMEMENT
+
+DROP VIEW IF EXISTS v_etapes_trajets ;
+CREATE VIEW v_etapes_trajets AS
+WITH tw1 as (SELECT nDEPART, region_depart, aNOMBATEAU, aANNEE, aARMEMENT, aACTIVITE, nFRET, fNATURE
 FROM v_voyages_etapes n
 WHERE nNUMETAP = 1
 ),tw2 as (SELECT nDEPART, region_depart, aNOMBATEAU, aANNEE  
@@ -115,7 +119,7 @@ FROM v_voyages_etapes n
 GROUP BY aNOMBATEAU , aANNEE
 ), tw4 AS (
 SELECT tw1.nDEPART AS depart, tw1.region_depart as reg_depart, tw2.nDEPART AS arrivee, tw2.region_depart as reg_arrivee, 
-tw1.aANNEE, tw1.aNOMBATEAU, tw1.aARMEMENT, eff_etapes, frets
+tw1.aANNEE, tw1.aACTIVITE, tw1.nFRET, tw1.fNATURE, tw1.aNOMBATEAU, tw1.aARMEMENT, eff_etapes, frets
 FROM tw1, tw2, tw3
 WHERE tw1.aNOMBATEAU = tw2.aNOMBATEAU
 AND tw1.aANNEE = tw2.aANNEE
@@ -123,7 +127,7 @@ AND tw3.aNOMBATEAU = tw2.aNOMBATEAU
 AND tw3.aANNEE = tw2.aANNEE
 GROUP BY tw1.nDEPART, tw2.nDEPART, tw1.aANNEE, tw1.aNOMBATEAU
 ORDER BY tw1.aANNEE, tw1.aNOMBATEAU )
-SELECT s.sSTATUT, tw4.*,  n2.nNUMETAP, n2.nDEPART, n2.nARRIVEE, n2.nFRET 
+SELECT s.sSTATUT, tw4.*,  n2.nNUMETAP, n2.nDEPART, n2.nARRIVEE 
 FROM tw4, navigations n2, statutsbateaux s 
 WHERE n2.nNOMBATEAU = tw4.aNOMBATEAU
 AND n2.nANNEE  = tw4.aANNEE
@@ -131,4 +135,15 @@ AND n2.nNUMETAP != 100
 AND s.sNOMBATEAU = n2.nNOMBATEAU 
 --- AND aNOMBATEAU = 'ST FRANÇOIS '
 ORDER BY n2.nANNEE, n2.nNOMBATEAU , n2.nNUMETAP ;
+
+
+
+
+SELECT *
+FROM v_etapes_trajets
+LIMIT 50;
+
+
+
+
 
