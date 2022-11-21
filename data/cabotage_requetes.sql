@@ -26,6 +26,12 @@ FROM activitesbateaux
 GROUP BY aNOMBATEAU
 ORDER BY eff DESC ;
 
+-- nombre d'escales par bateau et année
+SELECT nNOMBATEAU, nANNEE, count(*) AS effectif_annuel
+FROM navigations t1 
+WHERE nNUMETAP != 100
+GROUP BY nNOMBATEAU, nANNEE;
+
 
 -- les armateurs les plus actifs et leurs bateaux
 SELECT aARMEMENT , min(aANNEE), max(aANNEE), count(*) as eff, (GROUP_CONCAT(DISTINCT aNOMBATEAU))
@@ -34,7 +40,15 @@ FROM activitesbateaux
 GROUP BY aARMEMENT 
 ORDER BY eff DESC ;
 
-
+-- les armateurs et les bateaux les plus actifs — requête avec structure WITH
+WITH tw1 AS 
+(SELECT aARMEMENT, aNOMBATEAU, min(aANNEE) mia, max(aANNEE) maa, count(*) as eff_arm_bat
+FROM activitesbateaux
+GROUP BY aARMEMENT,  aNOMBATEAU) 
+SELECT aARMEMENT , min(mia), max(maa), count(*) as eff_bat, group_concat(DISTINCT(aNOMBATEAU|| '->' || eff_arm_bat)) ,sum(eff_arm_bat)
+FROM tw1
+GROUP BY aARMEMENT 
+ORDER BY eff_bat DESC;
 
 -- requête jointure entre la table navigations 
 -- et deux fois la table escales afin de disposer des codes des régions
@@ -60,8 +74,11 @@ FROM v_navigations_avec_regions vnar
 LIMIT 10;
 
 
+-- 
 
----- Requête jointure entre voyages 8appelés 'activitésbateaux' et étapes (appelées 'navigations')
+
+
+---- Requête jointure entre voyages (appelés 'activitésbateaux') et étapes (appelées 'navigations')
 --      Noter qu'il manque un lien direct dans le modèle et dans la base de données entre les voyages 
 --         et les étapes de chaque voyage  
  
